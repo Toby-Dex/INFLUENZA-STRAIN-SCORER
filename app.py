@@ -11,10 +11,9 @@ Audience: Researchers and Data Scientists
 """
 
 import json
-import time
-from datetime import datetime, timedelta
+from datetime import datetime
 from collections import defaultdict, Counter
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
 import numpy as np
 import pandas as pd
@@ -115,7 +114,7 @@ def apply_theme(fig: go.Figure, title: str = "") -> go.Figure:
     fig.update_layout(**layout)
     return fig
 
-def _th_style() -> list[dict]:
+def _th_style() -> list:
     """Return professional table header styling."""
     return [{
         "selector": "thead th",
@@ -248,10 +247,6 @@ html, body, [data-testid="stAppViewContainer"] {
     text-transform: uppercase;
     letter-spacing: 0.08em;
     color: var(--muted);
-}
-
-[data-testid="stMetric"] [data-testid="stMetricDeltaContainer"] {
-    font-family: 'JetBrains Mono', monospace;
 }
 
 .section-heading {
@@ -820,10 +815,6 @@ with tab_hotspots:
                     # Create 3D surface plot
                     x_pos = df_hot["Position"].values
                     y_freq = df_hot["Frequency %"].values
-                    
-                    # Generate smooth surface
-                    x_smooth = np.linspace(x_pos.min(), x_pos.max(), 50)
-                    y_smooth = np.interp(x_smooth, x_pos, y_freq)
                     
                     fig_3d = go.Figure(data=[
                         go.Scatter3d(
