@@ -414,6 +414,52 @@ def parse_fasta(content: str, segments: list) -> dict:
     
     return sequences
 
+def parse_fasta_streaming(file_obj, segments: list, max_sequences: int = None) -> dict:
+    """Parse FASTA file in streaming mode for large files."""
+    sequences = {}
+    current_id = None
+    current_seq = []
+    seq_count = 0
+
+    try:
+        for raw_line in file_obj:
+            # UploadedFile yields bytes; decode if necessary
+            line = raw_line.decode("utf-8").strip() if isinstance(raw_line, bytes) else raw_line.strip()
+
+            if line.startswith('>'):
+                # Save previous sequence
+                if current_id and seq_count < (max_sequences or float('inf')):
+                    seq = ''.join(current_seq)
+                    segment = identify_segment(current_id)
+                    if segment in segments or not segments:
+                        sequences[current_id] = {
+                            "sequence": seq,
+                            "segment": segment,
+                            "length": len(seq)
+                        }
+                        seq_count += 1
+
+                current_id = line[1:]
+                current_seq = []
+            else:
+                current_seq.append(line)
+
+        # Don't forget last sequence
+        if current_id and seq_count < (max_sequences or float('inf')):
+            seq = ''.join(current_seq)
+            segment = identify_segment(current_id)
+            if segment in segments or not segments:
+                sequences[current_id] = {
+                    "sequence": seq,
+                    "segment": segment,
+                    "length": len(seq)
+                }
+
+    except Exception as e:
+        st.error(f"Error reading file: {e}")
+
+    return sequences
+
 def identify_segment(description: str) -> str:
     """Identify sequence segment from header."""
     desc_upper = description.upper()
@@ -609,6 +655,15 @@ with st.sidebar:
         1, 50, 10,
         help="Minimum mutation frequency to identify hotspots"
     )
+
+    # Optional cap for streaming uploads
+    max_sequences = st.number_input(
+        "Max Sequences (0 = unlimited)",
+        min_value=0,
+        value=0,
+        step=100,
+        help="Cap the number of sequences parsed from large FASTA uploads. Set to 0 for no limit."
+    )
     
     st.markdown("---")
     st.markdown("### Quick Reference")
@@ -644,9 +699,17 @@ with tab_dataset:
                 help="Multi-sequence FASTA format"
             )
             if uploaded_file:
-                content = uploaded_file.getvalue().decode("utf-8")
-                st.session_state.sequences = parse_fasta(content, selected_segments if selected_segments else [])
-                st.success("Dataset loaded successfully")
+                # ── Streaming parser replaces the old in-memory approach ──────
+                max_seq_arg = int(max_sequences) if max_sequences > 0 else None
+                with st.spinner("Parsing sequences…"):
+                    st.session_state.sequences = parse_fasta_streaming(
+                        uploaded_file,
+                        selected_segments if selected_segments else [],
+                        max_sequences=max_seq_arg,
+                    )
+                st.success(
+                    f"Dataset loaded — {len(st.session_state.sequences):,} sequence(s) parsed"
+                )
         
         else:  # Sample Dataset
             if st.button("Load Sample Dataset", use_container_width=True):
